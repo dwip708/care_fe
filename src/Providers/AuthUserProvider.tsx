@@ -40,9 +40,7 @@ export default function AuthUserProvider({ children, unauthorized }: Props) {
       if (query.res?.ok && query.data) {
         localStorage.setItem(LocalStorageKeys.accessToken, query.data.access);
         localStorage.setItem(LocalStorageKeys.refreshToken, query.data.refresh);
-
         await refetch();
-
         if (location.pathname === "/" || location.pathname === "/login") {
           navigate(getRedirectOr("/"));
         }
@@ -51,6 +49,14 @@ export default function AuthUserProvider({ children, unauthorized }: Props) {
       return query;
     },
     [refetch]
+  );
+
+  const valid = useCallback(
+    async (creds: { username: string; password: string }) => {
+      const query = await request(routes.login, { body: creds });
+      return query;
+    },
+    []
   );
 
   const signOut = useCallback(async () => {
@@ -87,7 +93,7 @@ export default function AuthUserProvider({ children, unauthorized }: Props) {
   }
 
   return (
-    <AuthUserContext.Provider value={{ signIn, signOut, user }}>
+    <AuthUserContext.Provider value={{ signIn, signOut, valid, user }}>
       {!res.ok || !user ? unauthorized : children}
     </AuthUserContext.Provider>
   );

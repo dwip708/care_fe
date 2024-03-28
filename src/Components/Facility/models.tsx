@@ -523,6 +523,14 @@ export type IFacilityNotificationRequest = {
   message: string;
 };
 
+export type OTPRequestBody = {
+  totp: string;
+};
+export type OTPResponseBody = {
+  valid: boolean;
+  reason: string;
+};
+
 export type IFacilityNotificationResponse = {
   [key: string]: string;
 };

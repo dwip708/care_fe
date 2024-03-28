@@ -13,9 +13,9 @@ import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import { useAuthContext } from "../../Common/hooks/useAuthUser";
 import FiltersCache from "../../Utils/FiltersCache";
-
+import { error } from "@pnotify/core";
 export const Login = (props: { forgot?: boolean }) => {
-  const { signIn } = useAuthContext();
+  const { signIn, valid } = useAuthContext();
   const {
     main_logo,
     recaptcha_site_key,
@@ -39,8 +39,80 @@ export const Login = (props: { forgot?: boolean }) => {
   // display spinner while login is under progress
   const [loading, setLoading] = useState(false);
   const [forgotPassword, setForgotPassword] = useState(forgot);
+  const [otp, setOtp] = useState(false);
+  const [otpv, setOtpv] = useState(""); // State to store OTP validation result
 
   // Login form validation
+
+  //VERIFY OTP VALUE
+  const validateOTPData = () => {
+    let hasError = false;
+    const err = Object.assign({}, errors);
+    if (typeof otpv === "string") {
+      if (!otpv.match(/^\d{6}$/)) {
+        hasError = true;
+        err.otp = "invalid_otp";
+      }
+    }
+    if (otpv === "") {
+      hasError = true;
+      err.otp = "field_required";
+    }
+    if (hasError) {
+      setErrors(err);
+      return false;
+    }
+    const formData = {
+      totp: otpv,
+    };
+    return formData;
+  };
+
+  //GENERATE OTP
+  const handlegenOTP = async () => {
+    setLoading(true);
+    const { res, error } = await request(routes.generateOtp, {
+      body: { ...form },
+    });
+    setLoading(false);
+    if (res?.status === 200) setOtp(true);
+    if (res && error) {
+      setErrors(error);
+    }
+  };
+
+  //VERIFY OTP
+  const handleOTPVerification = async (e: any) => {
+    e.preventDefault();
+    const valid = validateOTPData();
+    if (valid) {
+      setLoading(true);
+      const { res, data: validData } = await request(routes.verifyOtp, {
+        body: { ...valid },
+      });
+      setLoading(false);
+      if (res?.ok && validData) {
+        const { valid, reason } = validData;
+        if (valid) {
+          Notification.Success({
+            msg: t("OTP Verified Successfully"),
+          });
+          setLoading(true);
+          const { res } = await signIn(form);
+          setCaptcha(res?.status === 429);
+          setLoading(false);
+        } else {
+          Notification.Error({
+            msg: t(reason),
+          });
+        }
+        setOtpv("");
+      } else if (res && error) {
+        setErrors(error);
+        setOtpv("");
+      }
+    } else setOtpv("");
+  };
 
   const handleChange = (e: any) => {
     const { value, name } = e.target;
@@ -55,6 +127,16 @@ export const Login = (props: { forgot?: boolean }) => {
       fieldValue[name] = value.toLowerCase();
     }
     setForm(fieldValue);
+  };
+
+  const handleChange2 = (e: any) => {
+    const { value, name } = e.target;
+    const errorField = Object.assign({}, errors);
+    if (errorField[name]) {
+      errorField[name] = null;
+      setErrors(errorField);
+    }
+    setOtpv(value);
   };
 
   const validateData = () => {
@@ -93,17 +175,20 @@ export const Login = (props: { forgot?: boolean }) => {
 
   const handleSubmit = async (e: any) => {
     e.preventDefault();
-
-    setLoading(true);
     FiltersCache.invaldiateAll();
     const validated = validateData();
     if (!validated) {
       setLoading(false);
       return;
     }
-    const { res } = await signIn(validated);
-    setCaptcha(res?.status === 429);
-    setLoading(false);
+    const { res } = await valid(validated);
+    console.log(res);
+    if (res?.status === 200) {
+      handlegenOTP();
+    }
+    // const { res } = await signIn(validated);
+    // setCaptcha(res?.status === 429);
+    // setLoading(false);
   };
 
   const validateForgetData = () => {
@@ -278,7 +363,7 @@ export const Login = (props: { forgot?: boolean }) => {
               <div
                 className={
                   "w-full transition-all " +
-                  (!forgotPassword
+                  (!forgotPassword && !otp
                     ? "visible -translate-x-0 opacity-100"
                     : "invisible -translate-x-5 opacity-0")
                 }
@@ -401,6 +486,63 @@ export const Login = (props: { forgot?: boolean }) => {
                           className="inline-flex w-full cursor-pointer items-center justify-center rounded bg-primary-500 px-4 py-2 text-sm font-semibold text-white"
                         >
                           {t("send_reset_link")}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </form>
+                <LanguageSelectorLogin />
+              </div>
+
+              <div
+                className={
+                  "absolute w-full transition-all " +
+                  (otp
+                    ? "visible translate-x-0 opacity-100"
+                    : "invisible translate-x-5 opacity-0")
+                }
+              >
+                <button
+                  onClick={() => {
+                    setOtp(false);
+                  }}
+                  type="button"
+                  className="mb-4 text-sm text-primary-400 hover:text-primary-500"
+                >
+                  <div className="flex justify-center">
+                    <CareIcon className="care-l-arrow-left text-lg" />
+                    <span>{t("back_to_login")}</span>
+                  </div>
+                </button>
+                <div className="mb-8 w-[300px] text-4xl font-black text-primary-600">
+                  {t("Enter OTP")}
+                </div>
+                <form onSubmit={handleOTPVerification}>
+                  <div>
+                    {t("get_otp_instruction")}
+                    <LegendInput
+                      id="otp"
+                      name="otp"
+                      type="TEXT"
+                      legend={t("OTP")}
+                      value={otpv}
+                      onChange={handleChange2}
+                      error={errors.otp}
+                      outerClassName="my-4"
+                      size="large"
+                      className="font-extrabold"
+                    />
+                    <div className="justify-start">
+                      {loading ? (
+                        <div className="flex items-center justify-center">
+                          <CircularProgress className="text-primary-500" />
+                        </div>
+                      ) : (
+                        <button
+                          type="submit"
+                          className="inline-flex w-full cursor-pointer items-center justify-center rounded bg-primary-500 px-4 py-2 text-sm font-semibold text-white"
+                        >
+                          {t("Submit OTP")}
                         </button>
                       )}
                     </div>

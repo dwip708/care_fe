@@ -61,6 +61,8 @@ import {
   LocalBodyModel,
   LocationModel,
   MinimumQuantityItemResponse,
+  OTPRequestBody,
+  OTPResponseBody,
   PatientNotesEditModel,
   PatientNotesModel,
   PatientStatsModel,
@@ -229,6 +231,20 @@ const routes = {
     method: "DELETE",
     TBody: Type<IUserFacilityRequest>(),
     TRes: Type<Record<string, never>>(),
+  },
+  generateOtp: {
+    path: "api/v1/totp/generate/",
+    method: "POST",
+    TBody: Type<{
+      username: string;
+    }>(),
+    TRes: Type<Record<string, never>>(),
+  },
+  verifyOtp: {
+    path: "api/v1/totp/verify/",
+    method: "POST",
+    TBody: Type<OTPRequestBody>(),
+    TRes: Type<OTPResponseBody>(),
   },
 
   clearHomeFacility: {
